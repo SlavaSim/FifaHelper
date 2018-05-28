@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Check</title>
+</head>
+<body>
+<script src="https://code.jquery.com/jquery-3.3.1.js"></script>
+<script>
+    $.ajaxPrefilter(function( options, originalOptions, jqXHR ) {
+        if ( options.dataType == 'script' || originalOptions.dataType == 'script' ) {
+            options.cache = true;
+        }
+    });
+
+    var avURL = "https://tickets.fifa.com/API/WCachedL1/en/Availability/GetAvailability";
+    var timerID = setInterval(function() {
+        checkAvailability();
+    }, 10 * 1000);
+
+    var checkAvailability = function () {
+        $.ajax({
+            type: 'GET',
+            crossDomain: true,
+            dataType: 'jsonp',
+            jsonp: false,
+            url: avURL,
+            success: function(data){
+                console.log(data);
+            }
+        })
+    }
+</script>
+</body>
+</html>
