@@ -21,7 +21,7 @@ public class TicketChecker/* extends TelegramLongPollingBot*/ implements Runnabl
     public static final String avURL = "https://tickets.fifa.com/API/WCachedL1/en/Availability/GetAvailability";
     public static final String TELEGRAM_BOT_URL = "https://api.telegram.org/bot";
     private final String botToken;
-    private String chatId;
+    private String mainChatId;
     private String proxyAddress;
     private int proxyPort;
     private int[] categories;
@@ -30,7 +30,7 @@ public class TicketChecker/* extends TelegramLongPollingBot*/ implements Runnabl
 
     public TicketChecker(String botToken, String chatId, String proxyAddress, int proxyPort, int[] categories) {
         this.botToken = botToken;
-        this.chatId = chatId;
+        this.mainChatId = chatId;
         this.proxyAddress = proxyAddress;
         this.proxyPort = proxyPort;
         this.categories = categories;
@@ -53,11 +53,12 @@ public class TicketChecker/* extends TelegramLongPollingBot*/ implements Runnabl
     private void processAvailability(Availability availability) {
         boolean found = availability.getData().stream().anyMatch(d -> Arrays.binarySearch(categories, d.c) >= 0 && d.a == 1);
         if (found) {
-            sendAlert();
+            sendAlert(mainChatId);
+            sendAlert("561688131");
         }
     }
 
-    private void sendAlert() {
+    private void sendAlert(String chatId) {
         try {
 //            String url = TELEGRAM_BOT_URL + botToken + "/sendMessage?chat_id=" + chatId + "&text=Tickets";
             URI uri = new URIBuilder(TELEGRAM_BOT_URL + botToken + "/sendMessage")
@@ -76,6 +77,7 @@ public class TicketChecker/* extends TelegramLongPollingBot*/ implements Runnabl
             request.addHeader("User-Agent", USER_AGENT);
 
             HttpResponse response = httpClient.execute(request);
+
         } catch (Exception e) {
             e.printStackTrace();
         }
