@@ -17,7 +17,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 
-public class TicketChecker/* extends TelegramLongPollingBot*/ implements Runnable {
+public class TicketChecker implements Runnable {
     public static final String avURL = "https://tickets.fifa.com/API/WCachedL1/en/Availability/GetAvailability";
     public static final String TELEGRAM_BOT_URL = "https://api.telegram.org/bot";
     private final String botToken;
