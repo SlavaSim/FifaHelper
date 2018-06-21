@@ -1,5 +1,7 @@
 package ru.slavasim.fifa;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -19,6 +21,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.stream.Collectors.*;
 
@@ -40,6 +43,14 @@ public class TicketChecker/* extends TelegramLongPollingBot*/ implements Runnabl
     private static boolean firstTime = true;
     private ConcurrentHashMap<String, Integer[]> preferences = new ConcurrentHashMap();
     private ConcurrentHashMap<String, String> matches = new ConcurrentHashMap();
+
+    private static final Cache<String, String> cache;
+
+    static {
+        cache = CacheBuilder.newBuilder()
+                .expireAfterWrite(20, TimeUnit.MINUTES)
+                .build();
+    }
 
     public TicketChecker(String botToken, String chatId, String proxyAddress, int proxyPort, int[] categories) {
         this.botToken = botToken;
@@ -107,18 +118,10 @@ public class TicketChecker/* extends TelegramLongPollingBot*/ implements Runnabl
 
         Map<String, Set<Integer>> freshMap = avList.stream()
                 .collect(groupingBy(as -> as.matchId, mapping(as -> as.category, toSet())));
-        Map<String, Set<Integer>> diff = new HashMap<>();
-        for (Map.Entry<String, Set<Integer>> entry : freshMap.entrySet()) {
-            if (!lastMatchMap.containsKey(entry.getKey())) {
-                diff.put(entry.getKey(), entry.getValue());
-                continue;
-            }
-            Set<Integer> nums = new HashSet<>(entry.getValue());
-            nums.removeAll(lastMatchMap.get(entry.getKey()));
-            if (!nums.isEmpty()) {
-                diff.put(entry.getKey(), nums);
-            }
-        }
+
+        Map<String, Set<Integer>> diff = findDifference(freshMap);
+        diff = clearDifference(diff);
+        fillCache(freshMap);
         lastMatchMap = freshMap;
         if (!diff.isEmpty()) {
             StringBuilder builder = new StringBuilder().append("Появились новые билеты(").append(language.toUpperCase()).append("):");
@@ -173,6 +176,52 @@ public class TicketChecker/* extends TelegramLongPollingBot*/ implements Runnabl
 */
     }
 
+    private void fillCache(Map<String, Set<Integer>> freshMap) {
+        for (Map.Entry<String, Set<Integer>> entry : freshMap.entrySet()) {
+            String matchId = entry.getKey();
+            Set<Integer> set = entry.getValue();
+            for (Integer cat : set) {
+                String cacheKey = matchId + ":" + cat;
+                cache.put(cacheKey, "1");
+            }
+        }
+    }
+
+    private Map<String, Set<Integer>> clearDifference(Map<String, Set<Integer>> diff) {
+        Map<String, Set<Integer>> clearDiff = new HashMap<>();
+        for (Map.Entry<String, Set<Integer>> entry : diff.entrySet()) {
+            String matchId = entry.getKey();
+            Set<Integer> set = entry.getValue();
+            Set<Integer> newset = new HashSet<>();
+            for (Integer cat : set) {
+                String cacheKey = matchId + ":" + cat;
+                if (!cache.asMap().containsKey(cacheKey)) {
+                    newset.add(cat);
+                }
+            }
+            if (!newset.isEmpty()) {
+                clearDiff.put(matchId, newset);
+            }
+        }
+        return clearDiff;
+    }
+
+    private Map<String, Set<Integer>> findDifference(Map<String, Set<Integer>> freshMap) {
+        Map<String, Set<Integer>> diff = new HashMap<>();
+        for (Map.Entry<String, Set<Integer>> entry : freshMap.entrySet()) {
+            if (!lastMatchMap.containsKey(entry.getKey())) {
+                diff.put(entry.getKey(), entry.getValue());
+                continue;
+            }
+            Set<Integer> nums = new HashSet<>(entry.getValue());
+            nums.removeAll(lastMatchMap.get(entry.getKey()));
+            if (!nums.isEmpty()) {
+                diff.put(entry.getKey(), nums);
+            }
+        }
+        return diff;
+    }
+
     private String catList(Set<Integer> nums) {
         Set<String> ordered = new TreeSet<>(nums.stream().map(n -> catLabels[n]).collect(toSet()));
         String[] strings = ordered.toArray(new String[ordered.size()]);
@@ -207,6 +256,7 @@ public class TicketChecker/* extends TelegramLongPollingBot*/ implements Runnabl
             request.addHeader("User-Agent", USER_AGENT);
 
             HttpResponse response = httpClient.execute(request);
+//            System.out.println(chatId + ": " + message);
 
         } catch (Exception e) {
             e.printStackTrace();
